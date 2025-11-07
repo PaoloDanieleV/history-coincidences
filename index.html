@@ -60,10 +60,79 @@
       updateMap(parseInt(year));
     };
 
-    // === 4. UPDATE MAP ===
+    // === 4. UPDATE MAP WITH GAP FILLING ===
     function updateMap(year) {
       markers.clearLayers();
-      const yearData = data.filter(row => parseInt(row.Year) === year);
+      const visible = [];
+
+      // Group data by person
+      const people = {};
+      data.forEach(row => {
+        const name = row.Name;
+        if (!people[name]) people[name] = [];
+        people[name].push({
+          year: parseInt(row.Year),
+          lat: parseFloat(row.Lat),
+          lng: parseFloat(row.Long),
+          bio: row.Bio,
+          source: row.Source
+        });
+      });
+
+      // For each person, find where they were in the selected year
+      Object.keys(people).forEach(name => {
+        const timeline = people[name].sort((a, b) => a.year - b.year);
+        let current = null;
+
+        for (let i = 0; i < timeline.length; i++) {
+          const point = timeline[i];
+          if (point.year === year) {
+            current = point;
+            break;
+          } else if (point.year < year && (!timeline[i + 1] || timeline[i + 1].year > year)) {
+            current = point; // Still at last known location
+            break;
+          }
+        }
+
+        if (current) {
+          visible.push({ name, ...current });
+        }
+      });
+
+      // Add markers
+      visible.forEach(p => {
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: 9,
+          color: '#d00',
+          fillOpacity: 0.9
+        }).addTo(markers);
+
+        marker.bindPopup(`
+          <b>${p.name}</b> (${year})<br>
+          ${p.bio}<br>
+          <a href="${p.source}" target="_blank">Source</a>
+        `);
+      });
+
+      // Coincidence Alert
+      if (visible.length > 1) {
+        alertDiv.style.display = 'block';
+        alertDiv.innerHTML = `Coincidence! ${visible.length} figures in ${year}`;
+      } else {
+        alertDiv.style.display = 'none';
+      }
+
+      // Auto-zoom
+      if (visible.length > 0) {
+        const group = new L.featureGroup(visible.map(p => 
+          L.circleMarker([p.lat, p.lng])
+        ));
+        map.fitBounds(group.getBounds().pad(0.5));
+      } else {
+        map.setView([0, 0], 2);
+      }
+    }
 
       yearData.forEach(row => {
         const marker = L.circleMarker([row.Lat, row.Long], {
