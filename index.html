@@ -3,165 +3,144 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Historical Coincidences Map</title>
-  
-  <!-- Leaflet Map -->
+  <title>Historical Figures Coincidence Map</title>
+
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: Arial; background: #f4f4f4; }
-    #map { height: 70vh; width: 100%; }
-    .controls { padding: 10px; text-align: center; background: white; }
-    #yearLabel { font-weight: bold; font-size: 1.2em; color: #d00; }
-    h1 { text-align: center; color: #333; margin: 10px 0; }
-    #alert { text-align: center; padding: 5px; background: #ffeb3b; display: none; }
+    body { margin:0; font-family:Arial,Helvetica,sans-serif; background:#f4f4f4; }
+    h1 { text-align:center; margin:15px 0; color:#333; }
+    #map { height:70vh; width:100%; }
+    .controls { padding:12px; text-align:center; background:#fff; }
+    #yearLabel { font-weight:bold; font-size:1.2em; color:#d00; }
+    #alert { text-align:center; padding:8px; background:#ffeb3b; display:none; margin:5px 0; }
+    .note { font-size:0.9em; margin:8px 0; color:#555; }
   </style>
 </head>
 <body>
-  <h1>🗺️ Historical Figures Coincidence Map</h1>
-  <div id="alert">🚨 Coincidence Alert: Multiple figures nearby!</div>
+
+  <h1>Historical Figures Coincidence Map</h1>
+  <div id="alert"></div>
   <div id="map"></div>
+
   <div class="controls">
-    <input type="range" id="yearSlider" min="1900" max="2000" value="1913" step="1" style="width: 80%;" />
+    <input type="range" id="yearSlider" min="1800" max="2025" value="1913" step="1" style="width:80%;" />
     <div>Year: <span id="yearLabel">1913</span></div>
-    <p style="font-size: 0.9em; margin: 5px 0;">Slide to explore overlaps—like 1913 Vienna!</p>
+    <p class="note">Slide to see where people were – gaps are filled automatically.</p>
   </div>
 
-  <!-- Libraries -->
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- PapaParse for CSV -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    // === 1. SETUP MAP ===
+    // ---------- 1. MAP SETUP ----------
     const map = L.map('map').setView([48.2082, 16.3738], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-    let markers = L.layerGroup().addTo(map);
-    let data = [];
+    const markers = L.layerGroup().addTo(map);
     const alertDiv = document.getElementById('alert');
 
-    // === 2. LOAD DATA FROM GOOGLE SHEETS ===
-    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRhGNH694n31wex_-fz1QS3VBN6j6Iv_2fPMzAnMlXJlov2T2YmLTrGUmOjcKJgusy3348TOFMJYYdw/pub?output=csv";  // ← PASTE YOUR LINK HERE
+    // ---------- 2. LOAD GOOGLE SHEET ----------
+    // -----> REPLACE THIS LINE WITH YOUR PUBLISHED CSV URL <-----
+    const sheetURL = "YOUR_GOOGLE_SHEET_CSV_LINK_HERE";
+
+    let rawData = [];   // all rows from CSV
 
     Papa.parse(sheetURL, {
       download: true,
       header: true,
       complete: function(results) {
-        data = results.data.filter(row => row.Year && row.Lat && row.Long);
-        updateMap(1913);
+        rawData = results.data.filter(r => r.Name && r.Year && r.Lat && r.Long);
+        // start with the slider value
+        updateMap(parseInt(document.getElementById('yearSlider').value));
+      },
+      error: function(err) {
+        alertDiv.style.display = 'block';
+        alertDiv.style.background = '#f88';
+        alertDiv.textContent = 'Error loading CSV – check the URL.';
       }
     });
 
-    // === 3. SLIDER ===
+    // ---------- 3. SLIDER ----------
     const slider = document.getElementById('yearSlider');
-    const label = document.getElementById('yearLabel');
-    slider.oninput = () => {
-      const year = slider.value;
-      label.textContent = year;
-      updateMap(parseInt(year));
+    const yearLabel = document.getElementById('yearLabel');
+
+    slider.oninput = function () {
+      const y = parseInt(this.value);
+      yearLabel.textContent = y;
+      updateMap(y);
     };
 
-    // === 4. UPDATE MAP WITH GAP FILLING ===
-    function updateMap(year) {
+    // ---------- 4. GAP-FILLING UPDATE ----------
+    function updateMap(selectedYear) {
       markers.clearLayers();
-      const visible = [];
 
-      // Group data by person
+      // Group by person
       const people = {};
-      data.forEach(row => {
-        const name = row.Name;
+      rawData.forEach(row => {
+        const name = row.Name.trim();
         if (!people[name]) people[name] = [];
         people[name].push({
           year: parseInt(row.Year),
           lat: parseFloat(row.Lat),
           lng: parseFloat(row.Long),
-          bio: row.Bio,
-          source: row.Source
+          bio: row.Bio || '',
+          source: row.Source || '#'
         });
       });
 
-      // For each person, find where they were in the selected year
+      const visible = [];
+
       Object.keys(people).forEach(name => {
-        const timeline = people[name].sort((a, b) => a.year - b.year);
+        const timeline = people[name].sort((a,b) => a.year - b.year);
         let current = null;
 
         for (let i = 0; i < timeline.length; i++) {
-          const point = timeline[i];
-          if (point.year === year) {
-            current = point;
-            break;
-          } else if (point.year < year && (!timeline[i + 1] || timeline[i + 1].year > year)) {
-            current = point; // Still at last known location
-            break;
+          const p = timeline[i];
+          if (p.year === selectedYear) { current = p; break; }
+          if (p.year < selectedYear) {
+            // still at last known location until next entry
+            if (!timeline[i+1] || timeline[i+1].year > selectedYear) {
+              current = p;
+              break;
+            }
           }
         }
-
-        if (current) {
-          visible.push({ name, ...current });
-        }
+        if (current) visible.push({ name, ...current });
       });
 
-      // Add markers
+      // ---- Add markers ----
       visible.forEach(p => {
-        const marker = L.circleMarker([p.lat, p.lng], {
+        const m = L.circleMarker([p.lat, p.lng], {
           radius: 9,
           color: '#d00',
           fillOpacity: 0.9
         }).addTo(markers);
 
-        marker.bindPopup(`
-          <b>${p.name}</b> (${year})<br>
+        m.bindPopup(`
+          <b>${p.name}</b> (${selectedYear})<br>
           ${p.bio}<br>
           <a href="${p.source}" target="_blank">Source</a>
         `);
       });
 
-      // Coincidence Alert
+      // ---- Coincidence alert ----
       if (visible.length > 1) {
         alertDiv.style.display = 'block';
-        alertDiv.innerHTML = `Coincidence! ${visible.length} figures in ${year}`;
+        alertDiv.textContent = `Coincidence! ${visible.length} figures in ${selectedYear}`;
       } else {
         alertDiv.style.display = 'none';
       }
 
-      // Auto-zoom
+      // ---- Auto-zoom ----
       if (visible.length > 0) {
-        const group = new L.featureGroup(visible.map(p => 
-          L.circleMarker([p.lat, p.lng])
-        ));
+        const group = new L.featureGroup(visible.map(p => L.circleMarker([p.lat, p.lng])));
         map.fitBounds(group.getBounds().pad(0.5));
       } else {
-        map.setView([0, 0], 2);
-      }
-    }
-
-      yearData.forEach(row => {
-        const marker = L.circleMarker([row.Lat, row.Long], {
-          radius: 8,
-          color: '#d00',
-          fillOpacity: 0.8
-        }).addTo(markers);
-
-        marker.bindPopup(`
-          <b>${row.Name}</b><br>
-          ${row.Bio}<br>
-          <a href="${row.Source}" target="_blank">Source</a>
-        `);
-      });
-
-      // Coincidence Alert (if 2+ people)
-      if (yearData.length > 1) {
-        alertDiv.style.display = 'block';
-      } else {
-        alertDiv.style.display = 'none';
-      }
-
-      if (yearData.length > 0) {
-        const group = new L.featureGroup(yearData.map(d => 
-          L.circleMarker([d.Lat, d.Long])
-        ));
-        map.fitBounds(group.getBounds().pad(0.5));
-      } else {
-        // Default view if no data
         map.setView([0, 0], 2);
       }
     }
