@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Historical Coincidences Map</title>
+  
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body { margin: 0; font-family: Arial; background: #f4f4f4; }
+    #map { height: 70vh; width: 100%; }
+    .controls { padding: 10px; text-align: center; background: white; }
+    #yearLabel { font-weight: bold; font-size: 1.2em; color: #d00; }
+    h1 { text-align: center; color: #333; margin: 10px 0; }
+    #alert { text-align: center; padding: 5px; background: #ffeb3b; display: none; }
+  </style>
+</head>
+<body>
+  <h1>🗺️ Historical Figures Coincidence Map</h1>
+  <div id="alert">🚨 Coincidence Alert: Multiple figures nearby!</div>
+  <div id="map"></div>
+  <div class="controls">
+    <input type="range" id="yearSlider" min="1900" max="2000" value="1913" step="1" style="width: 80%;" />
+    <div>Year: <span id="yearLabel">1913</span></div>
+    <p style="font-size: 0.9em; margin: 5px 0;">Slide to explore overlaps—like 1913 Vienna!</p>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    // === 1. SETUP MAP ===
+    const map = L.map('map').setView([48.2082, 16.3738], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let markers = L.layerGroup().addTo(map);
+    let data = [];
+    const alertDiv = document.getElementById('alert');
+
+    // === 2. LOAD DATA FROM GOOGLE SHEETS ===
+    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRhGNH694n31wex_-fz1QS3VBN6j6Iv_2fPMzAnMlXJlov2T2YmLTrGUmOjcKJgusy3348TOFMJYYdw/pub?output=csv";  // ← PASTE YOUR LINK HERE
+
+    Papa.parse(sheetURL, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        data = results.data.filter(row => row.Year && row.Lat && row.Long);
+        updateMap(1913);
+      }
+    });
+
+    // === 3. SLIDER ===
+    const slider = document.getElementById('yearSlider');
+    const label = document.getElementById('yearLabel');
+    slider.oninput = () => {
+      const year = slider.value;
+      label.textContent = year;
+      updateMap(parseInt(year));
+    };
+
+    // === 4. UPDATE MAP ===
+    function updateMap(year) {
+      markers.clearLayers();
+      const yearData = data.filter(row => parseInt(row.Year) === year);
+
+      yearData.forEach(row => {
+        const marker = L.circleMarker([row.Lat, row.Long], {
+          radius: 8,
+          color: '#d00',
+          fillOpacity: 0.8
+        }).addTo(markers);
+
+        marker.bindPopup(`
+          <b>${row.Name}</b><br>
+          ${row.Bio}<br>
+          <a href="${row.Source}" target="_blank">Source</a>
+        `);
+      });
+
+      // Coincidence Alert (if 2+ people)
+      if (yearData.length > 1) {
+        alertDiv.style.display = 'block';
+      } else {
+        alertDiv.style.display = 'none';
+      }
+
+      if (yearData.length > 0) {
+        const group = new L.featureGroup(yearData.map(d => 
+          L.circleMarker([d.Lat, d.Long])
+        ));
+        map.fitBounds(group.getBounds().pad(0.5));
+      } else {
+        // Default view if no data
+        map.setView([0, 0], 2);
+      }
+    }
+  </script>
+</body>
+</html>
