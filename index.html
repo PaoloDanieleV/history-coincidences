@@ -29,7 +29,7 @@
   <div class="controls">
     <input type="range" id="yearSlider" min="1800" max="2025" value="1913" step="1" style="width:80%;" />
     <div>Year: <span id="yearLabel">1913</span></div>
-    <p class="note">Slide to follow journeys. Map is fixed — no zooming or panning.</p>
+    <p class="note">Slide to follow journeys. Zoom & pan manually — no auto-jump!</p>
   </div>
 
   <div class="legend" id="legend"></div>
@@ -39,18 +39,15 @@
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    // ========== FIXED MAP VIEW (CHANGE THESE TO YOUR PREFERENCE) ==========
-    const FIXED_CENTER = [48.2082, 16.3738];  // Vienna 1913 (change to [0,0] for world, etc.)
-    const FIXED_ZOOM = 6;                     // 6 = continent view, 10 = city, 3 = world
-
+    // ========== MAP SETUP (FULL ZOOM/PAN ENABLED) ==========
     const map = L.map('map', {
-      center: FIXED_CENTER,
-      zoom: FIXED_ZOOM,
-      zoomControl: false,        // Hide zoom buttons
-      doubleClickZoom: false,
-      scrollWheelZoom: false,
-      touchZoom: false,
-      dragging: false            // Disable panning
+      center: [48.2082, 16.3738],
+      zoom: 6,
+      zoomControl: true,           // Show + / - buttons
+      doubleClickZoom: true,
+      scrollWheelZoom: true,
+      touchZoom: true,
+      dragging: true               // Allow panning
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -75,7 +72,7 @@
     }
 
     // ========== LOAD DATA ==========
-    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRhGNH694n31wex_-fz1QS3VBN6j6Iv_2fPMzAnMlXJlov2T2YmLTrGUmOjcKJgusy3348TOFMJYYdw/pub?output=csv";  // PASTE YOUR CSV LINK
+    const sheetURL = "YOUR_GOOGLE_SHEET_CSV_LINK_HERE";  // PASTE YOUR CSV LINK
 
     let rawData = [];
 
@@ -110,7 +107,7 @@
       updateMap(y);
     };
 
-    // ========== UPDATE MAP (NO ZOOM, NO PAN) ==========
+    // ========== UPDATE MAP (NO AUTO-ZOOM) ==========
     function updateMap(selectedYear) {
       markers.clearLayers();
       paths.clearLayers();
@@ -186,7 +183,7 @@
         alertDiv.style.display = 'none';
       }
 
-      // NO ZOOM, NO PAN — MAP STAYS LOCKED
+      // NO AUTO-ZOOM — YOU CONTROL THE VIEW
     }
   </script>
 </body>
