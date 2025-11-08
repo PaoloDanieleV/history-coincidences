@@ -3,69 +3,104 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Historical Figures Coincidence Map</title>
+  <title>Historical Figures Journey Map</title>
 
-  <!-- Leaflet CSS -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { margin:0; font-family:Arial,Helvetica,sans-serif; background:#f4f4f4; }
-    h1 { text-align:center; margin:15px 0; color:#333; }
+    h1 { text-align:center; margin:15px 0; color:#222; font-size:1.6em; }
     #map { height:70vh; width:100%; }
     .controls { padding:12px; text-align:center; background:#fff; }
-    #yearLabel { font-weight:bold; font-size:1.2em; color:#d00; }
-    #alert { text-align:center; padding:8px; background:#ffeb3b; display:none; margin:5px 0; }
+    #yearLabel { font-weight:bold; font-size:1.3em; color:#d00; }
+    #alert { text-align:center; padding:8px; background:#ffeb3b; display:none; margin:5px 0; font-weight:bold; }
     .note { font-size:0.9em; margin:8px 0; color:#555; }
+    .legend { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:10px; }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:0.9em; }
+    .legend-color { width:12px; height:12px; border-radius:50%; }
   </style>
 </head>
 <body>
 
-  <h1>Historical Figures Coincidence Map</h1>
+  <h1>Historical Figures Journey Map</h1>
   <div id="alert"></div>
   <div id="map"></div>
 
   <div class="controls">
     <input type="range" id="yearSlider" min="1800" max="2025" value="1913" step="1" style="width:80%;" />
     <div>Year: <span id="yearLabel">1913</span></div>
-    <p class="note">Slide to see where people were – gaps are filled automatically.</p>
+    <p class="note">Slide to follow journeys. Map is fixed — no zooming or panning.</p>
   </div>
 
-  <!-- Leaflet JS -->
+  <div class="legend" id="legend"></div>
+
+  <!-- Leaflet + PapaParse -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- PapaParse for CSV -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <script>
-    // ---------- 1. MAP SETUP ----------
-    const map = L.map('map').setView([48.2082, 16.3738], 10);
+    // ========== FIXED MAP VIEW (CHANGE THESE TO YOUR PREFERENCE) ==========
+    const FIXED_CENTER = [48.2082, 16.3738];  // Vienna 1913 (change to [0,0] for world, etc.)
+    const FIXED_ZOOM = 6;                     // 6 = continent view, 10 = city, 3 = world
+
+    const map = L.map('map', {
+      center: FIXED_CENTER,
+      zoom: FIXED_ZOOM,
+      zoomControl: false,        // Hide zoom buttons
+      doubleClickZoom: false,
+      scrollWheelZoom: false,
+      touchZoom: false,
+      dragging: false            // Disable panning
+    });
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     const markers = L.layerGroup().addTo(map);
+    const paths = L.layerGroup().addTo(map);
     const alertDiv = document.getElementById('alert');
+    const legendDiv = document.getElementById('legend');
 
-    // ---------- 2. LOAD GOOGLE SHEET ----------
-    // -----> REPLACE THIS LINE WITH YOUR PUBLISHED CSV URL <-----
-    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRhGNH694n31wex_-fz1QS3VBN6j6Iv_2fPMzAnMlXJlov2T2YmLTrGUmOjcKJgusy3348TOFMJYYdw/pub?output=csv";
+    // ========== COLOR PALETTE ==========
+    const personColors = {};
+    const colorPalette = ['#d00','#00a','#080','#d0a','#0aa','#a60','#a0a','#06d','#c50','#09d'];
+    let colorIndex = 0;
+    function getColor(name) {
+      if (!personColors[name]) {
+        personColors[name] = colorPalette[colorIndex % colorPalette.length];
+        colorIndex++;
+      }
+      return personColors[name];
+    }
 
-    let rawData = [];   // all rows from CSV
+    // ========== LOAD DATA ==========
+    const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRhGNH694n31wex_-fz1QS3VBN6j6Iv_2fPMzAnMlXJlov2T2YmLTrGUmOjcKJgusy3348TOFMJYYdw/pub?output=csv";  // PASTE YOUR CSV LINK
+
+    let rawData = [];
 
     Papa.parse(sheetURL, {
       download: true,
       header: true,
       complete: function(results) {
         rawData = results.data.filter(r => r.Name && r.Year && r.Lat && r.Long);
-        // start with the slider value
+        buildLegend();
         updateMap(parseInt(document.getElementById('yearSlider').value));
-      },
-      error: function(err) {
-        alertDiv.style.display = 'block';
-        alertDiv.style.background = '#f88';
-        alertDiv.textContent = 'Error loading CSV – check the URL.';
       }
     });
 
-    // ---------- 3. SLIDER ----------
+    // ========== LEGEND ==========
+    function buildLegend() {
+      const names = [...new Set(rawData.map(r => r.Name.trim()))];
+      legendDiv.innerHTML = names.map(name => `
+        <div class="legend-item">
+          <div class="legend-color" style="background:${getColor(name)}"></div>
+          <span>${name}</span>
+        </div>
+      `).join('');
+    }
+
+    // ========== SLIDER ==========
     const slider = document.getElementById('yearSlider');
     const yearLabel = document.getElementById('yearLabel');
 
@@ -75,11 +110,11 @@
       updateMap(y);
     };
 
-    // ---------- 4. GAP-FILLING UPDATE ----------
+    // ========== UPDATE MAP (NO ZOOM, NO PAN) ==========
     function updateMap(selectedYear) {
       markers.clearLayers();
+      paths.clearLayers();
 
-      // Group by person
       const people = {};
       rawData.forEach(row => {
         const name = row.Name.trim();
@@ -94,6 +129,7 @@
       });
 
       const visible = [];
+      const pathPoints = {};
 
       Object.keys(people).forEach(name => {
         const timeline = people[name].sort((a,b) => a.year - b.year);
@@ -102,33 +138,47 @@
         for (let i = 0; i < timeline.length; i++) {
           const p = timeline[i];
           if (p.year === selectedYear) { current = p; break; }
-          if (p.year < selectedYear) {
-            // still at last known location until next entry
-            if (!timeline[i+1] || timeline[i+1].year > selectedYear) {
-              current = p;
-              break;
-            }
+          if (p.year < selectedYear && (!timeline[i+1] || timeline[i+1].year > selectedYear)) {
+            current = p;
+            break;
           }
         }
-        if (current) visible.push({ name, ...current });
+
+        if (current) {
+          visible.push({ name, ...current });
+          if (!pathPoints[name]) pathPoints[name] = [];
+          pathPoints[name].push([current.lat, current.lng]);
+        }
       });
 
-      // ---- Add markers ----
-      visible.forEach(p => {
-        const m = L.circleMarker([p.lat, p.lng], {
-          radius: 9,
-          color: '#d00',
-          fillOpacity: 0.9
-        }).addTo(markers);
+      // --- Draw journey lines ---
+      Object.keys(pathPoints).forEach(name => {
+        if (pathPoints[name].length > 1) {
+          L.polyline(pathPoints[name], {
+            color: getColor(name),
+            weight: 3,
+            opacity: 0.7,
+            dashArray: '5,10'
+          }).addTo(paths);
+        }
+      });
 
-        m.bindPopup(`
-          <b>${p.name}</b> (${selectedYear})<br>
+      // --- Add markers ---
+      visible.forEach(p => {
+        L.circleMarker([p.lat, p.lng], {
+          radius: 10,
+          color: '#fff',
+          weight: 2,
+          fillColor: getColor(p.name),
+          fillOpacity: 0.9
+        }).bindPopup(`
+          <b style="color:${getColor(p.name)}">${p.name}</b> (${selectedYear})<br>
           ${p.bio}<br>
           <a href="${p.source}" target="_blank">Source</a>
-        `);
+        `).addTo(markers);
       });
 
-      // ---- Coincidence alert ----
+      // --- Coincidence alert ---
       if (visible.length > 1) {
         alertDiv.style.display = 'block';
         alertDiv.textContent = `Coincidence! ${visible.length} figures in ${selectedYear}`;
@@ -136,13 +186,7 @@
         alertDiv.style.display = 'none';
       }
 
-      // ---- Auto-zoom ----
-      if (visible.length > 0) {
-        const group = new L.featureGroup(visible.map(p => L.circleMarker([p.lat, p.lng])));
-        map.fitBounds(group.getBounds().pad(0.5));
-      } else {
-        map.setView([0, 0], 2);
-      }
+      // NO ZOOM, NO PAN — MAP STAYS LOCKED
     }
   </script>
 </body>
