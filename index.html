@@ -58,8 +58,9 @@
       dragging: true               // Allow panning
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png', {
+      attribution: '&copy; Stamen Design, &copy; OpenStreetMap contributors',
+      maxZoom: 18
     }).addTo(map);
 
     const markers = L.layerGroup().addTo(map);
