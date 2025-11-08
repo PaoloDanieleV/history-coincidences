@@ -148,14 +148,18 @@
         }
       });
 
-      // --- Draw journey lines ---
-      Object.keys(pathPoints).forEach(name => {
-        if (pathPoints[name].length > 1) {
-          L.polyline(pathPoints[name], {
+// --- Draw journey lines ONLY in the year of movement ---
+      Object.keys(people).forEach(name => {
+        const timeline = people[name].sort((a,b) => a.year - b.year);
+        const current = timeline.find(p => p.year === selectedYear);
+        const previous = timeline.filter(p => p.year < selectedYear).pop();
+
+        if (current && previous) {
+          // Only draw line if person moved THIS YEAR
+          L.polyline([[previous.lat, previous.lng], [current.lat, current.lng]], {
             color: getColor(name),
-            weight: 3,
-            opacity: 0.7,
-            dashArray: '5,10'
+            weight: 4,
+            opacity: 0.9
           }).addTo(paths);
         }
       });
