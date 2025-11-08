@@ -18,27 +18,20 @@
     .legend { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin:10px; }
     .legend-item { display:flex; align-items:center; gap:5px; font-size:0.9em; }
     .legend-color { width:12px; height:12px; border-radius:50%; }
-    /* Remove all map borders and padding */
-    .leaflet-container {
-      border: none !important;
-      outline: none !important;
+    /* Remove country borders & labels */
+    .map-tiles {
+      filter: 
+        brightness(1.1) 
+        contrast(1.1) 
+        saturate(0.8)
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'><filter id='remove-borders'><feComponentTransfer><feFuncA type='table' tableValues='0 0'/></feComponentTransfer></filter></svg>#remove-borders");
     }
-    .leaflet-pane,
-    .leaflet-tile-pane,
-    .leaflet-overlay-pane,
-    .leaflet-shadow-pane,
-    .leaflet-marker-pane,
-    .leaflet-popup-pane {
+    
+    /* Optional: Soften roads, keep cities */
+    .leaflet-tile {
       border: none !important;
     }
-
-    #map {
-    height: 70vh;
-    width: 100%;
-    border-radius: 0 !important;
-    overflow: hidden;
-  }
-  </style>
+      </style>
 </head>
 <body>
 
@@ -70,8 +63,10 @@
       dragging: true               // Allow panning
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 18,
+      className: 'map-tiles'
     }).addTo(map);
 
     const markers = L.layerGroup().addTo(map);
